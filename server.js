@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -405,6 +405,6 @@ app.post('/api/orders', (req, res) => {
 
 // Run
 app.listen(PORT, () => {
-  console.log(` Backend รันที่ http://localhost:${PORT}`);
-  console.log(` ฐานข้อมูลอยู่ที่: ${DATA_DIR}`);
+  console.log(`Backend รันที่ port ${PORT}`);
+  console.log(`ฐานข้อมูลอยู่ที่: ${DATA_DIR}`);
 });

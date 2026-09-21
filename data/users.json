@@ -1,0 +1,72 @@
+{
+  "admin": {
+    "password": "admin1234",
+    "role": "admin",
+    "createdAt": "2026-09-13T10:29:48.417Z"
+  },
+  "Breaker": {
+    "password": "XDPO90",
+    "role": "user",
+    "createdAt": "2026-09-13T10:32:13.504Z"
+  },
+  "Nahee": {
+    "password": "X123",
+    "role": "user",
+    "createdAt": "2026-09-13T10:41:54.467Z"
+  },
+  "Ber": {
+    "password": "XD123",
+    "role": "user",
+    "createdAt": "2026-09-13T10:49:24.777Z"
+  },
+  "XDoo": {
+    "password": "XD123",
+    "role": "user",
+    "createdAt": "2026-09-13T11:23:48.197Z"
+  },
+  "Berserk": {
+    "password": "XD123",
+    "role": "user",
+    "createdAt": "2026-09-15T07:20:55.785Z"
+  },
+  "XD123": {
+    "password": "XD123",
+    "role": "user",
+    "createdAt": "2026-09-15T09:38:30.299Z"
+  },
+  "Jay": {
+    "password": "jayjay",
+    "role": "user",
+    "createdAt": "2026-09-15T13:32:01.668Z"
+  },
+  "XD": {
+    "password": "XDAD",
+    "role": "user",
+    "createdAt": "2026-09-15T13:36:47.388Z"
+  },
+  "XX": {
+    "password": "XX123",
+    "role": "user",
+    "createdAt": "2026-09-21T01:56:01.919Z"
+  },
+  "min1234": {
+    "password": "min1234",
+    "role": "user",
+    "createdAt": "2026-09-21T01:56:56.300Z"
+  },
+  "hh": {
+    "password": "123123",
+    "role": "user",
+    "createdAt": "2026-09-21T09:39:45.437Z"
+  },
+  "Phu": {
+    "password": "phu123456",
+    "role": "user",
+    "createdAt": "2026-09-21T18:25:04.680Z"
+  },
+  "XD111": {
+    "password": "XD111",
+    "role": "user",
+    "createdAt": "2026-09-21T18:55:19.597Z"
+  }
+}

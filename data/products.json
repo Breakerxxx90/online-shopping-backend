@@ -1,0 +1,158 @@
+{
+  "foryou": [
+    {
+      "id": "kb1",
+      "category": "foryou",
+      "name": "Keybord Pro",
+      "price": 250,
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSaA1cvv3TUmLDXTl0ppClk6s6Bj4zkeFoSVq27JSxaRw&s=10",
+      "icon": "⌨️",
+      "desc": "คีย์บอร์ดคุณภาพสูง"
+    },
+    {
+      "id": "fo1789991327165",
+      "category": "foryou",
+      "name": "หนังสือความรู้[หนังสือโปรแกรมPython]",
+      "price": 25,
+      "image": "https://i.pinimg.com/1200x/bb/75/5f/bb755f15c845a1e3549f045b0455d5e0.jpg",
+      "icon": "📦",
+      "desc": ""
+    },
+    {
+      "id": "fo1790011311634",
+      "category": "foryou",
+      "name": "ไมโล[สูตรลับ]",
+      "price": 10,
+      "image": "https://i1.sndcdn.com/artworks-5kQxs9HSrdt4NYjy-asJbUA-t500x500.jpg",
+      "icon": "📦",
+      "desc": ""
+    }
+  ],
+  "trending": [
+    {
+      "id": "sw4",
+      "category": "trending",
+      "name": "Smart Watch Fit",
+      "price": 299.9,
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSDbGRQduX6Z_Bw-7qPAsDRQBnEh68AzQSnnCJJmhyqzw&s=10",
+      "icon": "⌚",
+      "desc": "นาฬิกาอัจฉริยะเพื่อสุขภาพ"
+    },
+    {
+      "id": "tr1789991069851",
+      "category": "trending",
+      "name": "แมวสุดน่ารัก",
+      "price": 50,
+      "image": "https://i.pinimg.com/736x/66/86/ae/6686ae04340f0125502a1fc08bf482da.jpg",
+      "icon": "📦",
+      "desc": "แมวสุดน่ารักมันเป็นของคุณ"
+    },
+    {
+      "id": "tr1789991247465",
+      "category": "trending",
+      "name": "รองเท้าบาส[เท่ๆ]",
+      "price": 40,
+      "image": "https://i.pinimg.com/736x/16/3f/37/163f37e2c714aa12c5a3fccdd75b830a.jpg",
+      "icon": "📦",
+      "desc": ""
+    },
+    {
+      "id": "tr1789991924975",
+      "category": "trending",
+      "name": "โปสเตอร์ลิง[ประดับมงคล]",
+      "price": 5,
+      "image": "https://i.pinimg.com/736x/93/1a/61/931a616a62e49de6c888c91f93351c9e.jpg",
+      "icon": "📦",
+      "desc": ""
+    },
+    {
+      "id": "tr1789992462601",
+      "category": "trending",
+      "name": "คำภีย์นักรบมังกร",
+      "price": 1500,
+      "image": "https://static0.srcdn.com/wordpress/wp-content/uploads/2023/10/kung-fu-panda-po-dragon-scroll.jpg?q=50&fit=crop&w=825&dpr=1.5",
+      "icon": "⌨️",
+      "desc": ""
+    }
+  ],
+  "gamer": [
+    {
+      "id": "ms4",
+      "category": "gamer",
+      "name": "Gaming Mouse Lite",
+      "price": 25,
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRattgmRr1DIkeO8xS2KUY-0udjisltXY4FgNAfkSGspLVOxmrRSiTXfmOp&s=10",
+      "icon": "🖱️",
+      "desc": "เมาส์เกมมิ่งรุ่นเบสิค"
+    },
+    {
+      "id": "ga1789991755599",
+      "category": "gamer",
+      "name": "หน้าจอคอม[ขนาด250x520]",
+      "price": 150,
+      "image": "https://www.shutterstock.com/image-photo/old-fashioned-desktop-computer-keyboard-260nw-2727815037.jpg",
+      "icon": "📦",
+      "desc": ""
+    }
+  ],
+  "cat_1789996022975": [
+    {
+      "id": "ca1789996061360",
+      "category": "cat_1789996022975",
+      "name": "ตุ๊กตาบาร์บี้",
+      "price": 7,
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8I5P3_44MLQfFgWJtjyh_xdz8ajdP9_mft7zGcTsY14V3k4yGqGm0QN7L&s=10",
+      "icon": "📦",
+      "desc": ""
+    },
+    {
+      "id": "ca1790010812843",
+      "category": "cat_1789996022975",
+      "name": "สติกเกอร์ไลน์[เท่หลุดโลก]",
+      "price": 85,
+      "image": "https://i.pinimg.com/736x/65/67/a8/6567a8ccb91ae98ecd082cd4b289de47.jpg",
+      "icon": "📦",
+      "desc": ""
+    }
+  ],
+  "cat_1790010851612": [
+    {
+      "id": "ca1790010926213",
+      "category": "cat_1790010851612",
+      "name": "เพลงอฺต[เพลงอิต 2021]",
+      "price": 15,
+      "image": "https://i.pinimg.com/1200x/61/0b/6e/610b6ee9180fbedfe6e4ec245aa02d08.jpg",
+      "icon": "📦",
+      "desc": ""
+    }
+  ],
+  "cat_1790010994553": [
+    {
+      "id": "ca1790011021841",
+      "category": "cat_1790010994553",
+      "name": "ยาวิเศษ[อ่านฉลาก เพื่อดูสรรพคุณ]",
+      "price": 15,
+      "image": "https://i.pinimg.com/736x/d5/4e/f6/d54ef6bb94b04b6c8fc99b67f45a40a3.jpg",
+      "icon": "📦",
+      "desc": ""
+    },
+    {
+      "id": "ca1790011153110",
+      "category": "cat_1790010994553",
+      "name": "ยาสรรพคุณพิเศษ[อ่าฉลากเพื่อดูสรรพคุณ]",
+      "price": 50,
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRTBR9RZtJfmt9a7UB5qmiaQscXjPEEelG6rixPJB8d9A&s=10",
+      "icon": "📦",
+      "desc": ""
+    },
+    {
+      "id": "ca1790011228751",
+      "category": "cat_1790010994553",
+      "name": "ยาสรรพคุณพิเศษ[อ่าฉลากเพื่อดูสรรพคุณ]",
+      "price": 10,
+      "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSssjfvGULnfrXHtP9obBYIckypiy1CUHlMNFkjntms0A&s",
+      "icon": "📦",
+      "desc": ""
+    }
+  ]
+}

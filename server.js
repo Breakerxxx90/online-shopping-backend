@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,51 +9,30 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
-
-const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
-const CATEGORIES_FILE = path.join(DATA_DIR, 'categories.json'); // เพิ่มไฟล์หมวดหมู่
-
-function initDataFile(file, defaultData) {
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, JSON.stringify(defaultData, null, 2));
-  }
+if (!process.env.DATABASE_URL) {
+  console.error('ไม่พบ DATABASE_URL กรุณาตั้งค่า environment variable ก่อนรันเซิร์ฟเวอร์');
 }
 
-// ข้อมูลเริ่มต้นสำหรับหมวดหมู่
-initDataFile(CATEGORIES_FILE, [
-  { key: 'foryou', name: 'สินค้าทั่วไป' },
-  { key: 'trending', name: 'Trending' },
-  { key: 'gamer', name: 'Gamer' }
-]);
-
-initDataFile(PRODUCTS_FILE, {
-  foryou: [
-    { id: 'kb1', category: 'foryou', name: 'Keybord Pro', price: 250.0, image: '', icon: '⌨️', desc: 'คีย์บอร์ดคุณภาพสูง' },
-    { id: 'kb2', category: 'foryou', name: 'Keybord Lite', price: 250.0, image: '', icon: '⌨️', desc: 'คีย์บอร์ดรุ่นเบสิค' },
-    { id: 'kb3', category: 'foryou', name: 'Keybord RGB', price: 250.0, image: '', icon: '⌨️', desc: 'คีย์บอร์ดไฟ RGB' },
-    { id: 'kb4', category: 'foryou', name: 'Keybord Mini', price: 250.0, image: '', icon: '⌨️', desc: 'คีย์บอร์ดขนาดกะทัดรัด' }
-  ],
-  trending: [
-    { id: 'sw1', category: 'trending', name: 'Smart Watch X', price: 299.9, image: '', icon: '⌚', desc: 'นาฬิกาอัจฉริยะรุ่นใหม่' },
-    { id: 'sw2', category: 'trending', name: 'Smart Watch Pro', price: 299.9, image: '', icon: '⌚', desc: 'นาฬิกาอัจฉริยะพรีเมียม' },
-    { id: 'sw3', category: 'trending', name: 'Smart Watch S', price: 299.9, image: '', icon: '⌚', desc: 'นาฬิกาอัจฉริยะสปอร์ต' },
-    { id: 'sw4', category: 'trending', name: 'Smart Watch Fit', price: 299.9, image: '', icon: '⌚', desc: 'นาฬิกาอัจฉริยะเพื่อสุขภาพ' }
-  ],
-  gamer: [
-    { id: 'ms1', category: 'gamer', name: 'Gaming Mouse X1', price: 25, image: '', icon: '🖱️', desc: 'เมาส์เกมมิ่งความแม่นยำสูง' },
-    { id: 'ms2', category: 'gamer', name: 'Gaming Mouse Pro', price: 25, image: '', icon: '🖱️', desc: 'เมาส์เกมมิ่งพรีเมียม' },
-    { id: 'ms3', category: 'gamer', name: 'Gaming Mouse RGB', price: 25, image: '', icon: '🖱️', desc: 'เมาส์เกมมิ่งไฟ RGB' },
-    { id: 'ms4', category: 'gamer', name: 'Gaming Mouse Lite', price: 25, image: '', icon: '🖱️', desc: 'เมาส์เกมมิ่งรุ่นเบสิค' }
-  ]
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-initDataFile(USERS_FILE, {});
-initDataFile(ORDERS_FILE, []);
+// สร้างบัญชีแอดมินเริ่มต้นถ้ายังไม่มี
+async function ensureAdminAccount() {
+  const { rows } = await pool.query(`SELECT 1 FROM Users WHERE Role = 'admin' LIMIT 1`);
+  if (rows.length === 0) {
+    await pool.query(
+      `INSERT INTO Users (Username, Password, Role) VALUES ($1, $2, $3)
+       ON CONFLICT (Username) DO NOTHING`,
+      ['admin', 'admin1234', 'admin']
+    );
+    console.log('สร้างบัญชีแอดมินเริ่มต้นแล้ว: username="admin" password="admin1234"');
+  }
+}
+ensureAdminAccount().catch(err => console.error('ensureAdminAccount error:', err));
 
+// เก็บพฤติกรรมการดูสินค้าไว้ในหน่วยความจำ (ไม่จำเป็นต้องอยู่ถาวร)
 const sessionStore = new Map(); // sessionId -> { events: [{productId, category, action, ts}], lastActive }
 const SESSION_MAX_EVENTS = 50;
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -65,7 +43,6 @@ setInterval(() => {
     if (now - s.lastActive > SESSION_TTL_MS) sessionStore.delete(sid);
   }
 }, 5 * 60 * 1000);
-
 
 const ACTION_WEIGHT = { view: 2, click: 1, cart: 3, purchase: 4 };
 
@@ -88,9 +65,8 @@ function computeSessionAffinity(sessionId) {
   return { categoryScore, productScore };
 }
 
-
-function buildOrderStats() {
-  const orders = readJSON(ORDERS_FILE);
+async function buildOrderStats() {
+  const { rows: orders } = await pool.query(`SELECT Items FROM Orders`);
   const purchaseCount = {};
   const coOccur = {};
 
@@ -112,159 +88,153 @@ function buildOrderStats() {
   return { purchaseCount, coOccur };
 }
 
-function readJSON(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf-8'));
+function rowToProduct(row) {
+  return {
+    id: row.productid,
+    category: row.categoryid,
+    name: row.productname,
+    price: Number(row.price),
+    image: row.image || '',
+    icon: row.icon || '',
+    desc: row.description || ''
+  };
 }
-function writeJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-
-function ensureAdminAccount() {
-  const users = readJSON(USERS_FILE);
-  const hasAdmin = Object.values(users).some(u => u.role === 'admin');
-  if (!hasAdmin) {
-    users['admin'] = {
-      password: 'admin1234', 
-      role: 'admin',
-      createdAt: new Date().toISOString()
-    };
-    writeJSON(USERS_FILE, users);
-    console.log(' สร้างบัญชีแอดมินเริ่มต้นแล้ว: username="admin" password="admin1234"');
-  }
-}
-ensureAdminAccount();
-
 
 // ==========================================
-// API หมวดหมู่ (Categories) - เพิ่มใหม่
+// API หมวดหมู่ (Categories)
 // ==========================================
-app.get('/api/categories', (req, res) => {
-  res.json(readJSON(CATEGORIES_FILE));
+app.get('/api/categories', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT CategoryID, CategoryName FROM Categories ORDER BY CategoryID`);
+    res.json(rows.map(r => ({ key: r.categoryid, name: r.categoryname })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ดึงข้อมูลหมวดหมู่ไม่สำเร็จ' });
+  }
 });
 
-app.post('/api/categories', (req, res) => {
-  const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'กรุณาระบุชื่อหมวดหมู่' });
+app.post('/api/categories', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'กรุณาระบุชื่อหมวดหมู่' });
 
-  const categories = readJSON(CATEGORIES_FILE);
-  if (categories.find(c => c.name === name)) {
-    return res.status(400).json({ error: 'หมวดหมู่นี้มีอยู่แล้ว' });
+    const existing = await pool.query(`SELECT 1 FROM Categories WHERE CategoryName = $1`, [name]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'หมวดหมู่นี้มีอยู่แล้ว' });
+    }
+
+    const key = 'cat_' + Date.now();
+    await pool.query(`INSERT INTO Categories (CategoryID, CategoryName) VALUES ($1, $2)`, [key, name]);
+    res.status(201).json({ key, name });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'สร้างหมวดหมู่ไม่สำเร็จ' });
   }
-
-  const key = 'cat_' + Date.now();
-  const newCat = { key, name };
-  
-  categories.push(newCat);
-  writeJSON(CATEGORIES_FILE, categories);
-
-  const products = readJSON(PRODUCTS_FILE);
-  if (!products[key]) {
-    products[key] = [];
-    writeJSON(PRODUCTS_FILE, products);
-  }
-
-  res.status(201).json(newCat);
 });
 
-app.delete('/api/categories/:key', (req, res) => {
-  const { key } = req.params;
-  
-  if (['foryou', 'trending', 'gamer'].includes(key)) {
-    return res.status(400).json({ error: 'ไม่สามารถลบหมวดหมู่หลักได้' });
+app.delete('/api/categories/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    if (['foryou', 'trending', 'gamer'].includes(key)) {
+      return res.status(400).json({ error: 'ไม่สามารถลบหมวดหมู่หลักได้' });
+    }
+    const result = await pool.query(`DELETE FROM Categories WHERE CategoryID = $1`, [key]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'ไม่พบหมวดหมู่' });
+    }
+    res.json({ success: true, message: 'ลบหมวดหมู่เรียบร้อย' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ลบหมวดหมู่ไม่สำเร็จ' });
   }
-
-  let categories = readJSON(CATEGORIES_FILE);
-  const initialLength = categories.length;
-  categories = categories.filter(c => c.key !== key);
-
-  if (categories.length === initialLength) {
-    return res.status(404).json({ error: 'ไม่พบหมวดหมู่' });
-  }
-
-  writeJSON(CATEGORIES_FILE, categories);
-
-  const products = readJSON(PRODUCTS_FILE);
-  if (products[key]) {
-    delete products[key];
-    writeJSON(PRODUCTS_FILE, products);
-  }
-
-  res.json({ success: true, message: 'ลบหมวดหมู่เรียบร้อย' });
 });
-
 
 // ==========================================
 // API สินค้า (Products)
 // ==========================================
-app.get('/api/products', (req, res) => {
-  res.json(readJSON(PRODUCTS_FILE));
-});
-
-app.get('/api/products/all', (req, res) => {
-  const data = readJSON(PRODUCTS_FILE);
-  let all = [];
-  // ดึงสินค้าจากทุกหมวดหมู่ที่มีในไฟล์ ไม่จำกัดแค่หมวดหลัก
-  for (const key in data) {
-    all = all.concat(data[key]);
+app.get('/api/products', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM Products ORDER BY CategoryID, ProductID`);
+    const grouped = {};
+    rows.forEach(row => {
+      const cat = row.categoryid || 'uncategorized';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(rowToProduct(row));
+    });
+    res.json(grouped);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ดึงข้อมูลสินค้าไม่สำเร็จ' });
   }
-  res.json(all);
 });
 
-app.post('/api/products', (req, res) => {
-  const { category, name, price, image, icon, desc } = req.body;
-  if (!category || !name || !price) {
-    return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+app.get('/api/products/all', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM Products`);
+    res.json(rows.map(rowToProduct));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ดึงข้อมูลสินค้าไม่สำเร็จ' });
   }
-  const data = readJSON(PRODUCTS_FILE);
-  if (!data[category]) data[category] = [];
-  const newProduct = {
-    id: category.substring(0, 2) + Date.now(),
-    category, name, price: Number(price),
-    image: image || '', icon: icon || '📦', desc: desc || ''
-  };
-  data[category].push(newProduct);
-  writeJSON(PRODUCTS_FILE, data);
-  res.json({ success: true, product: newProduct });
 });
 
-app.put('/api/products/:id', (req, res) => {
-  const { id } = req.params;
-  const { name, price, image, icon, desc } = req.body;
-  const data = readJSON(PRODUCTS_FILE);
-  let updated = null;
-  for (const cat of Object.keys(data)) {
-    const idx = data[cat].findIndex(p => p.id === id);
-    if (idx !== -1) {
-      data[cat][idx] = {
-        ...data[cat][idx],
-        name: name || data[cat][idx].name,
-        price: price !== undefined ? Number(price) : data[cat][idx].price,
-        image: image !== undefined ? image : data[cat][idx].image,
-        icon: icon || data[cat][idx].icon,
-        desc: desc !== undefined ? desc : data[cat][idx].desc
-      };
-      updated = data[cat][idx];
-      break;
+app.post('/api/products', async (req, res) => {
+  try {
+    const { category, name, price, image, icon, desc } = req.body;
+    if (!category || !name || !price) {
+      return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
     }
+    const id = category.substring(0, 2) + Date.now();
+    await pool.query(
+      `INSERT INTO Products (ProductID, ProductName, CategoryID, Price, Description, Image, Icon)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, name, category, Number(price), desc || '', image || '', icon || '📦']
+    );
+    res.json({
+      success: true,
+      product: { id, category, name, price: Number(price), image: image || '', icon: icon || '📦', desc: desc || '' }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'เพิ่มสินค้าไม่สำเร็จ' });
   }
-  if (!updated) return res.status(404).json({ error: 'ไม่พบสินค้า' });
-  writeJSON(PRODUCTS_FILE, data);
-  res.json({ success: true, product: updated });
 });
 
-app.delete('/api/products/:id', (req, res) => {
-  const { id } = req.params;
-  const data = readJSON(PRODUCTS_FILE);
-  let deleted = false;
-  for (const cat of Object.keys(data)) {
-    const before = data[cat].length;
-    data[cat] = data[cat].filter(p => p.id !== id);
-    if (data[cat].length < before) { deleted = true; break; }
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, price, image, icon, desc } = req.body;
+    const { rows } = await pool.query(`SELECT * FROM Products WHERE ProductID = $1`, [id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'ไม่พบสินค้า' });
+    const current = rows[0];
+    const updated = {
+      name: name || current.productname,
+      price: price !== undefined ? Number(price) : Number(current.price),
+      image: image !== undefined ? image : current.image,
+      icon: icon || current.icon,
+      desc: desc !== undefined ? desc : current.description
+    };
+    await pool.query(
+      `UPDATE Products SET ProductName = $1, Price = $2, Image = $3, Icon = $4, Description = $5 WHERE ProductID = $6`,
+      [updated.name, updated.price, updated.image, updated.icon, updated.desc, id]
+    );
+    res.json({ success: true, product: { id, category: current.categoryid, ...updated } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'แก้ไขสินค้าไม่สำเร็จ' });
   }
-  if (!deleted) return res.status(404).json({ error: 'ไม่พบสินค้า' });
-  writeJSON(PRODUCTS_FILE, data);
-  res.json({ success: true });
+});
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`DELETE FROM Products WHERE ProductID = $1`, [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'ไม่พบสินค้า' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ลบสินค้าไม่สำเร็จ' });
+  }
 });
 
 // ==========================================
@@ -288,123 +258,138 @@ app.post('/api/events', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/recommendations', async (req, res) => {
+  try {
+    const sessionId = req.query.sessionId || '';
+    const productId = req.query.productId || '';
+    const cartIds = String(req.query.cartIds || '').split(',').filter(Boolean);
+    const excludeIds = new Set(
+      String(req.query.exclude || '').split(',').filter(Boolean)
+        .concat(productId ? [productId] : [])
+        .concat(cartIds)
+    );
+    const limit = Math.min(Math.max(Number(req.query.limit) || 4, 1), 12);
 
-app.get('/api/recommendations', (req, res) => {
-  const sessionId = req.query.sessionId || '';
-  const productId = req.query.productId || '';
-  const cartIds = String(req.query.cartIds || '').split(',').filter(Boolean);
-  const excludeIds = new Set(
-    String(req.query.exclude || '').split(',').filter(Boolean)
-      .concat(productId ? [productId] : [])
-      .concat(cartIds)
-  );
-  const limit = Math.min(Math.max(Number(req.query.limit) || 4, 1), 12);
+    const { rows } = await pool.query(`SELECT * FROM Products`);
+    const allProducts = rows.map(rowToProduct);
 
-  const data = readJSON(PRODUCTS_FILE);
-  
-  // ปรับให้ดึงสินค้าทุกหมวดหมู่มารวมกัน เพื่อใช้ในระบบแนะนำ
-  let allProducts = [];
-  for (const key in data) {
-    allProducts = allProducts.concat(data[key]);
+    const { purchaseCount, coOccur } = await buildOrderStats();
+    const { categoryScore } = computeSessionAffinity(sessionId);
+
+    const referenceIds = productId ? [productId].concat(cartIds) : cartIds;
+    const maxPurchase = Math.max(1, ...Object.values(purchaseCount));
+    const hasCategorySignal = Object.keys(categoryScore).length > 0;
+
+    const scored = allProducts
+      .filter(function (p) { return !excludeIds.has(p.id); })
+      .map(function (p) {
+        let score = 0;
+        referenceIds.forEach(function (refId) {
+          if (coOccur[refId] && coOccur[refId][p.id]) {
+            score += coOccur[refId][p.id] * 6;
+          }
+        });
+        score += (categoryScore[p.category] || 0) * 3;
+        score += ((purchaseCount[p.id] || 0) / maxPurchase) * 2;
+        return Object.assign({}, p, { _score: score });
+      })
+      .sort(function (a, b) { return b._score - a._score; });
+
+    let reason = 'popular';
+    if (referenceIds.length && scored.some(function (p) { return p._score > 0; })) {
+      reason = 'related';
+    } else if (hasCategorySignal && scored.some(function (p) { return p._score > 0; })) {
+      reason = 'personalized';
+    }
+
+    const recommendations = scored.slice(0, limit).map(function (p) {
+      const clean = Object.assign({}, p);
+      delete clean._score;
+      return clean;
+    });
+
+    res.json({ recommendations, reason });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ดึงคำแนะนำไม่สำเร็จ' });
   }
-
-  const { purchaseCount, coOccur } = buildOrderStats();
-  const { categoryScore } = computeSessionAffinity(sessionId);
-
-  const referenceIds = productId ? [productId].concat(cartIds) : cartIds;
-  const maxPurchase = Math.max(1, ...Object.values(purchaseCount));
-  const hasCategorySignal = Object.keys(categoryScore).length > 0;
-
-  const scored = allProducts
-    .filter(function (p) { return !excludeIds.has(p.id); })
-    .map(function (p) {
-      let score = 0;
-
-      referenceIds.forEach(function (refId) {
-        if (coOccur[refId] && coOccur[refId][p.id]) {
-          score += coOccur[refId][p.id] * 6;
-        }
-      });
-
-      score += (categoryScore[p.category] || 0) * 3;
-      score += ((purchaseCount[p.id] || 0) / maxPurchase) * 2;
-
-      return Object.assign({}, p, { _score: score });
-    })
-    .sort(function (a, b) { return b._score - a._score; });
-
-  let reason = 'popular';
-  if (referenceIds.length && scored.some(function (p) { return p._score > 0; })) {
-    reason = 'related';
-  } else if (hasCategorySignal && scored.some(function (p) { return p._score > 0; })) {
-    reason = 'personalized';
-  }
-
-  const recommendations = scored.slice(0, limit).map(function (p) {
-    const clean = Object.assign({}, p);
-    delete clean._score;
-    return clean;
-  });
-
-  res.json({ recommendations: recommendations, reason: reason });
 });
 
 // ==========================================
 // API ผู้ใช้ (Auth)
 // ==========================================
-app.post('/api/signup', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+    }
+    const existing = await pool.query(`SELECT 1 FROM Users WHERE Username = $1`, [username]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'ชื่อผู้ใช้นี้มีอยู่แล้ว' });
+    }
+    await pool.query(`INSERT INTO Users (Username, Password, Role) VALUES ($1, $2, 'user')`, [username, password]);
+    res.json({ success: true, message: 'สมัครสำเร็จ' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'สมัครสมาชิกไม่สำเร็จ' });
   }
-  const users = readJSON(USERS_FILE);
-  if (users[username]) {
-    return res.status(400).json({ error: 'ชื่อผู้ใช้นี้มีอยู่แล้ว' });
-  }
-  users[username] = { password, role: 'user', createdAt: new Date().toISOString() };
-  writeJSON(USERS_FILE, users);
-  res.json({ success: true, message: 'สมัครสำเร็จ' });
 });
 
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  const users = readJSON(USERS_FILE);
-  if (!users[username] || users[username].password !== password) {
-    return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const { rows } = await pool.query(`SELECT * FROM Users WHERE Username = $1`, [username]);
+    const user = rows[0];
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+    }
+    res.json({ success: true, user: { username, role: user.role || 'user' } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'เข้าสู่ระบบไม่สำเร็จ' });
   }
-  res.json({
-    success: true,
-    user: { username, role: users[username].role || 'user' }
-  });
 });
 
 // ==========================================
 // API คำสั่งซื้อ (Orders)
 // ==========================================
-app.get('/api/orders/:username', (req, res) => {
-  const orders = readJSON(ORDERS_FILE).filter(o => o.user === req.params.username);
-  res.json(orders);
+app.get('/api/orders/:username', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT OrderID AS id, Username AS "user", Items AS items, Total AS total, Status AS status, CreatedAt AS "createdAt"
+       FROM Orders WHERE Username = $1 ORDER BY CreatedAt DESC`,
+      [req.params.username]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ดึงคำสั่งซื้อไม่สำเร็จ' });
+  }
 });
 
-app.post('/api/orders', (req, res) => {
-  const { user, items, total } = req.body;
-  if (!user || !items || items.length === 0) {
-    return res.status(400).json({ error: 'ข้อมูลไม่ครบ' });
+app.post('/api/orders', async (req, res) => {
+  try {
+    const { user, items, total } = req.body;
+    if (!user || !items || items.length === 0) {
+      return res.status(400).json({ error: 'ข้อมูลไม่ครบ' });
+    }
+    const id = 'ORD' + Date.now();
+    const status = 'สั่งซื้อสำเร็จ';
+    const createdAt = new Date().toISOString();
+    await pool.query(
+      `INSERT INTO Orders (OrderID, Username, Items, Total, Status, CreatedAt) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, user, JSON.stringify(items), Number(total), status, createdAt]
+    );
+    res.json({ success: true, order: { id, user, items, total: Number(total), status, createdAt } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'สร้างคำสั่งซื้อไม่สำเร็จ' });
   }
-  const orders = readJSON(ORDERS_FILE);
-  const newOrder = {
-    id: 'ORD' + Date.now(),
-    user, items, total: Number(total),
-    status: 'สั่งซื้อสำเร็จ',
-    createdAt: new Date().toISOString()
-  };
-  orders.push(newOrder);
-  writeJSON(ORDERS_FILE, orders);
-  res.json({ success: true, order: newOrder });
 });
 
 // Run
 app.listen(PORT, () => {
-  console.log(`Backend รันที่ port ${PORT}`);
-  console.log(`ฐานข้อมูลอยู่ที่: ${DATA_DIR}`);
+  console.log(`Backend รันที่พอร์ต ${PORT}`);
+  console.log('ฐานข้อมูล: Neon Postgres (ผ่าน DATABASE_URL)');
 });
